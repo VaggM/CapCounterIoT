@@ -1,12 +1,12 @@
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 
-const char* ssid = "";    
-const char* password = "";
-const char* mqttServer = "";
+const char* ssid = "wifiname";    
+const char* password = "wifipass";
+const char* mqttServer = "broker";
 const int mqttPort = 8883;               
-const char* mqttUser = ""; 
-const char* mqttPassword = ""; 
+const char* mqttUser = "user"; 
+const char* mqttPassword = "pass"; 
 
 WiFiClientSecure espClient;
 PubSubClient client(espClient);
