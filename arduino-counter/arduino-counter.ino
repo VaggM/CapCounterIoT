@@ -5,13 +5,18 @@ LiquidCrystal lcd(2, 3, 4, 5, 6, 7);
 HX711 scale;
 const int LOADCELL_DOUT_PIN = 8;
 const int LOADCELL_SCK_PIN = 9;
+const int TARE_BTN = 10;
 
 #include <SoftwareSerial.h>
-SoftwareSerial esp(10, 11); // RX, TX pins -> nodemcu
+SoftwareSerial esp(12, 13); // RX, TX pins -> nodemcu
+
+#include <Math.h>
 
 // init variables
-int timer = 50;
+int timer = 1;
+int timeout = 10;
 float weight = 0;
+int caps = 0;
 
 void setup() {
   
@@ -26,6 +31,7 @@ void setup() {
   
   // init load cell
   scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
+  pinMode(TARE_BTN, INPUT_PULLUP);
   
   // calibration
   scale.set_scale(500);
@@ -37,69 +43,74 @@ void setup() {
 
 void loop() {
 
+  // Set weight to 0 with button press
+  if (digitalRead(TARE_BTN) == LOW) {
+    scale.tare();
+  }
+
   // Read the weight from the load cell
   weight = scale.get_units();
+  caps = round(weight/30);
 
-  // serial display
-  showWeightSerial(weight);
+  if (caps < 0) caps = 0;
 
   // lcd display
   showWeightLCD(weight);
+  updateCapCount(caps);
 
   // nodemcu send
   timer ++;
 
-  if (timer > 60) {
-    Serial.print("Sending data: ");
-    Serial.println(weight);
-    esp.print(weight);
-    timer = 0;
+  if (timer > timeout) {
+    Serial.println("Sending data: " + String(caps));
+    esp.print(caps);
+    timer = 1;
   }
 
-  // nodemcu text parse
+  // nodemcu text parser
   if (esp.available()) {
+
     String text = esp.readString();
-    Serial.println(text);
+
+    if (text == "tare") {
+      scale.tare();
+    }
+    else if (text.substring(0,7) == "timeout") {
+      timer = 1;
+      timeout = text.substring(8).toInt();
+
+      if (timeout < 10) timeout = 10;
+
+      Serial.println("New timeout: " + String(timeout));
+    }
   }
 
   // wait one sec for each loop
   delay(1000);
-
 }
 
-void showWeightSerial(float weight) {
-  Serial.print("Weight: ");
-  Serial.print(weight);
-  Serial.println(" grams");
-}
+// print weight on second line of LCD screen
+void showWeightLCD(float x) {
 
-void showWeightLCD(int x) {
   lcd.setCursor(0, 1);
-  lcd.print("Weight:          ");
-  lcd.setCursor(8, 1);
+  lcd.print("W:          ");
 
-  // if (x < 1000)
-  //   lcd.print(" ");
-
-  // if (x < 100)
-  //   lcd.print(" ");
-
-  // if (x < 10)
-  //   lcd.print(" ");
-
+  lcd.setCursor(4, 1);
   lcd.print(x);
+
 }
 
+// print cap count on first line of LCD screen
 void updateCapCount(int x) {
-  lcd.setCursor(0, 0);
-  lcd.print("Cap count: ");
-  lcd.setCursor(11, 0);
 
-  if (x < 100)
-    lcd.print(" ");
+  lcd.setCursor(0, 0);
+  lcd.print("Cap count:      ");
+
+  lcd.setCursor(11, 0);
 
   if (x < 10)
     lcd.print(" ");
 
   lcd.print(x);
+
 }
